@@ -51,9 +51,9 @@ const JSONViewer = () => {
       const formatted = formatJSON(parsed, 0, nestLevel[0]);
       
       return (
-        <div className="font-mono text-sm">
+        <div className="font-mono text-sm whitespace-pre">
           {formatted.split(/([{}[\],":])/).map((part, index) => {
-            if (part.trim() === "") return null;
+            if (part.trim() === "") return part;
             
             // Determine the color based on the content
             let className = "";
@@ -82,7 +82,8 @@ const JSONViewer = () => {
         </div>
       );
     } catch (err) {
-      return <div className="text-gray-300 font-mono text-sm">{text}</div>;
+      // Show error in red for invalid JSON
+      return <div className="text-red-400 font-mono text-sm">{text}</div>;
     }
   };
 
