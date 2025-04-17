@@ -14,15 +14,44 @@ const JSONViewer = () => {
     return 1 + Math.max(0, ...Object.values(obj).map(calculateJsonDepth));
   };
 
-  const formatWithSyntaxHighlighting = (text: string, level: number = 0): JSX.Element => {
+  const formatJSON = (obj: any, level: number = 0, maxLevel: number): string => {
+    if (level >= maxLevel) {
+      return JSON.stringify(obj);
+    }
+
+    if (typeof obj !== "object" || obj === null) {
+      return JSON.stringify(obj);
+    }
+
+    const indent = "  ".repeat(level);
+    const nextIndent = "  ".repeat(level + 1);
+
+    if (Array.isArray(obj)) {
+      if (obj.length === 0) return "[]";
+      const items = obj
+        .map((item) => nextIndent + formatJSON(item, level + 1, maxLevel))
+        .join(",\n");
+      return `[\n${items}\n${indent}]`;
+    }
+
+    const entries = Object.entries(obj);
+    if (entries.length === 0) return "{}";
+    
+    const items = entries
+      .map(([key, value]) => `${nextIndent}"${key}": ${formatJSON(value, level + 1, maxLevel)}`)
+      .join(",\n");
+    return `{\n${items}\n${indent}}`;
+  };
+
+  const formatWithSyntaxHighlighting = (text: string): JSX.Element | null => {
     try {
-      if (!text.trim()) return <></>;
+      if (!text.trim()) return null;
       
       const parsed = JSON.parse(text);
       const formatted = formatJSON(parsed, 0, nestLevel[0]);
       
       return (
-        <span>
+        <div className="font-mono text-sm">
           {formatted.split(/([{}[\],":])/).map((part, index) => {
             if (part.trim() === "") return null;
             
@@ -40,6 +69,8 @@ const JSONViewer = () => {
               }
             } else if (!isNaN(Number(part))) {
               className = "text-yellow-300"; // Numbers
+            } else {
+              className = "text-gray-300"; // Default text color
             }
             
             return (
@@ -48,40 +79,11 @@ const JSONViewer = () => {
               </span>
             );
           })}
-        </span>
+        </div>
       );
     } catch (err) {
-      return <span>{text}</span>;
+      return <div className="text-gray-300 font-mono text-sm">{text}</div>;
     }
-  };
-
-  const formatJSON = (obj: any, level: number = 0, maxLevel: number): string => {
-    if (level >= maxLevel) {
-      return JSON.stringify(obj);
-    }
-
-    if (typeof obj !== "object" || obj === null) {
-      return JSON.stringify(obj);
-    }
-
-    const indent = "  ".repeat(level);
-    const nextIndent = "  ".repeat(level + 1);
-
-    if (Array.isArray(obj)) {
-      if (obj.length === 0) return "[]";
-      const items = obj
-        .map((item) => nextIndent + JSON.stringify(item))
-        .join(",\n");
-      return `[\n${items}\n${indent}]`;
-    }
-
-    const entries = Object.entries(obj);
-    if (entries.length === 0) return "{}";
-    
-    const items = entries
-      .map(([key, value]) => `${nextIndent}"${key}": ${formatJSON(value, level + 1, maxLevel)}`)
-      .join(",\n");
-    return `{\n${items}\n${indent}}`;
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -93,8 +95,11 @@ const JSONViewer = () => {
       if (newContent.trim()) {
         const parsed = JSON.parse(newContent);
         const depth = calculateJsonDepth(parsed);
-        setMaxDepth(depth);
-        setNestLevel([Math.min(nestLevel[0], depth)]);
+        setMaxDepth(Math.max(1, depth));
+        setNestLevel([Math.min(nestLevel[0], depth || 1)]);
+      } else {
+        setMaxDepth(1);
+        setNestLevel([1]);
       }
     } catch (err) {
       setError("Invalid JSON format");
@@ -120,16 +125,19 @@ const JSONViewer = () => {
             />
           </div>
 
-          <div className="relative flex-grow">
+          <div className="relative flex-grow overflow-hidden">
             <textarea
-              className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-gray-900 text-gray-300 border border-gray-700 rounded-lg resize-none"
+              className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-transparent text-transparent border border-gray-700 rounded-lg resize-none caret-white"
               placeholder="Paste your JSON here..."
               onChange={handleInputChange}
               value={jsonContent}
+              spellCheck="false"
             />
-            <pre className="absolute inset-0 w-full h-full p-4 font-mono text-sm pointer-events-none overflow-auto">
-              {formatWithSyntaxHighlighting(jsonContent)}
-            </pre>
+            <div className="absolute inset-0 w-full h-full p-4 overflow-auto">
+              {formatWithSyntaxHighlighting(jsonContent) || (
+                <div className="text-gray-500 font-mono text-sm">Paste your JSON here...</div>
+              )}
+            </div>
           </div>
 
           {error && (
