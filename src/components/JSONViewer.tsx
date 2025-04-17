@@ -50,32 +50,119 @@ const JSONViewer = () => {
       const parsed = JSON.parse(text);
       const formatted = formatJSON(parsed, 0, nestLevel[0]);
       
+      // Process the formatted text to identify special tokens
+      const tokens: { content: string; type: string }[] = [];
+      let inString = false;
+      let isKey = false;
+      let currentToken = "";
+      let i = 0;
+      
+      while (i < formatted.length) {
+        const char = formatted[i];
+        
+        if (char === '"' && (i === 0 || formatted[i - 1] !== '\\')) {
+          // Handle string start/end
+          if (inString) {
+            currentToken += char;
+            tokens.push({ 
+              content: currentToken, 
+              type: isKey ? "key" : "string" 
+            });
+            currentToken = "";
+            inString = false;
+            
+            // Check if this string is followed by a colon (making it a key)
+            let j = i + 1;
+            while (j < formatted.length && /\s/.test(formatted[j])) j++;
+            isKey = j < formatted.length && formatted[j] === ':';
+          } else {
+            if (currentToken) {
+              tokens.push({ content: currentToken, type: "other" });
+              currentToken = "";
+            }
+            currentToken = char;
+            inString = true;
+            
+            // Check if previous non-whitespace was a colon
+            let j = i - 1;
+            while (j >= 0 && /\s/.test(formatted[j])) j--;
+            isKey = j < 0 || formatted[j] !== ':';
+          }
+        } else if (!inString && (char === '{' || char === '}' || char === '[' || char === ']')) {
+          // Handle braces
+          if (currentToken) {
+            tokens.push({ content: currentToken, type: "other" });
+            currentToken = "";
+          }
+          tokens.push({ content: char, type: "brace" });
+        } else if (!inString && (char === ',' || char === ':')) {
+          // Handle separators
+          if (currentToken) {
+            tokens.push({ content: currentToken, type: "other" });
+            currentToken = "";
+          }
+          tokens.push({ content: char, type: "separator" });
+        } else {
+          currentToken += char;
+          
+          // Check for special values (true, false, null, numbers)
+          if (!inString && 
+              (currentToken === "true" || 
+               currentToken === "false" || 
+               currentToken === "null" || 
+               /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(currentToken)) &&
+              (i + 1 === formatted.length || /[\s,\]\}]/.test(formatted[i + 1]))
+          ) {
+            let type = "other";
+            if (currentToken === "null") type = "null";
+            else if (currentToken === "true" || currentToken === "false") type = "boolean";
+            else if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(currentToken)) type = "number";
+            
+            tokens.push({ content: currentToken, type });
+            currentToken = "";
+          }
+        }
+        i++;
+      }
+      
+      if (currentToken) {
+        tokens.push({ content: currentToken, type: "other" });
+      }
+      
       return (
         <div className="font-mono text-sm whitespace-pre">
-          {formatted.split(/([{}[\],":])/).map((part, index) => {
-            if (part.trim() === "") return part;
-            
-            // Determine the color based on the content
+          {tokens.map((token, index) => {
+            // Assign colors based on token type
             let className = "";
-            if (part === "{" || part === "}" || part === "[" || part === "]") {
-              className = "text-purple-400"; // Braces
-            } else if (part === "," || part === ":") {
-              className = "text-gray-400"; // Separators
-            } else if (part.startsWith('"')) {
-              if (/"[^"]*":/.test(part)) {
+            switch (token.type) {
+              case "key":
                 className = "text-cyan-300"; // Keys
-              } else {
+                break;
+              case "string":
                 className = "text-green-300"; // String values
-              }
-            } else if (!isNaN(Number(part))) {
-              className = "text-yellow-300"; // Numbers
-            } else {
-              className = "text-gray-300"; // Default text color
+                break;
+              case "number":
+                className = "text-yellow-300"; // Numbers
+                break;
+              case "boolean":
+                className = "text-purple-300"; // true/false
+                break;
+              case "null":
+                className = "text-gray-400"; // null
+                break;
+              case "brace":
+                className = "text-purple-400"; // Braces
+                break;
+              case "separator":
+                className = "text-gray-400"; // Separators
+                break;
+              default:
+                className = "text-gray-300"; // Default text color
             }
             
             return (
               <span key={index} className={className}>
-                {part}
+                {token.content}
               </span>
             );
           })}
@@ -128,17 +215,19 @@ const JSONViewer = () => {
 
           <div className="relative flex-grow overflow-hidden">
             <textarea
-              className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-transparent text-transparent border border-gray-700 rounded-lg resize-none caret-white"
+              className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-gray-800 text-gray-300 border border-gray-700 rounded-lg resize-none"
               placeholder="Paste your JSON here..."
               onChange={handleInputChange}
               value={jsonContent}
               spellCheck="false"
             />
-            <div className="absolute inset-0 w-full h-full p-4 overflow-auto">
-              {formatWithSyntaxHighlighting(jsonContent) || (
-                <div className="text-gray-500 font-mono text-sm">Paste your JSON here...</div>
-              )}
-            </div>
+            {jsonContent && (
+              <div className="absolute inset-0 w-full h-full p-4 overflow-auto pointer-events-none">
+                {formatWithSyntaxHighlighting(jsonContent) || (
+                  <div className="text-gray-500 font-mono text-sm">Paste your JSON here...</div>
+                )}
+              </div>
+            )}
           </div>
 
           {error && (
