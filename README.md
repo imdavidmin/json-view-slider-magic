@@ -1,8 +1,7 @@
 # Welcome to your Lovable project
 
 ## Project info
-
-**URL**: https://lovable.dev/projects/66d4139c-262b-4d5b-90f3-902c538a2c38
+**Demo**: https://json-view-slider-magic.lovable.app/
 
 ## How can I edit this code?
 
